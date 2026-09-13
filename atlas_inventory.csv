@@ -1,0 +1,10 @@
+account_number,debtor_name,phone_number,balance,status,client_name
+ACC-1001,Jane Doe,+1-555-0100,1250.75,Active,Midwest Credit Union
+ACC-1002,John Smith,+1-555-0101,430.00,Active,Midwest Credit Union
+ACC-1003,Maria Garcia,+1-555-0102,0,Closed,Sunrise Auto Finance
+ACC-1004,Wei Chen,+1-555-0103,9820.50,Settlement Eligible,Harbor Bank
+ACC-1005,Aisha Khan,+1-555-0104,275.25,Active,Sunrise Auto Finance
+ACC-1002,John Smith,+1-555-0199,500.00,Active,Midwest Credit Union
+ACC-1006,Robert Brown,+1-555-0105,not-a-number,Active,Harbor Bank
+,Missing Account,+1-555-0106,100.00,Active,Harbor Bank
+ACC-1007,Emily Wilson,+1-555-0107,3140.10,Settlement Eligible,Midwest Credit Union

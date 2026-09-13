@@ -1,0 +1,4 @@
+node_modules/
+atlas.db
+atlas.db-shm
+atlas.db-wal
