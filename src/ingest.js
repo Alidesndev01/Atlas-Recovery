@@ -18,11 +18,26 @@ const csvPath = inputArg
   ? path.resolve(inputArg)
   : path.join(__dirname, "..", "atlas_inventory.csv");
 
+// When ingest runs as part of a deploy's start command (e.g.
+// `npm run ingest && npm start`), exiting non-zero would stop the server from
+// ever starting. A missing or bad CSV is not a reason to take the API down --
+// the committed atlas.db already holds data -- so in that case we warn and exit
+// 0. Run it directly (`npm run ingest`) and a real failure still exits 1.
+const STRICT = process.stdout.isTTY || process.env.INGEST_STRICT === "1";
+
+function bail(msg) {
+  console.error(msg);
+  if (STRICT) process.exit(1);
+  console.error("   Continuing anyway so the server can still start.\n");
+  process.exit(0);
+}
+
 if (!fs.existsSync(csvPath)) {
-  console.error(`\n❌ CSV file not found: ${csvPath}`);
-  console.error("   Place your file at ./atlas_inventory.csv or pass a path:");
-  console.error("   npm run ingest ./mydata.csv\n");
-  process.exit(1);
+  bail(
+    `\n⚠️  CSV file not found: ${csvPath}\n` +
+      "   Place your file at ./atlas_inventory.csv or pass a path:\n" +
+      "   npm run ingest ./mydata.csv\n"
+  );
 }
 
 console.log(`\nReading CSV: ${csvPath}`);
@@ -31,9 +46,8 @@ let result;
 try {
   result = ingestCsv(fs.readFileSync(csvPath));
 } catch (e) {
-  console.error(`\n❌ Could not ingest this file: ${e.message}\n`);
   db.close();
-  process.exit(1);
+  bail(`\n⚠️  Could not ingest this file: ${e.message}\n`);
 }
 
 console.log("\n===== Ingestion Summary =====");

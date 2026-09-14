@@ -5,6 +5,7 @@
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
+    "postinstall": "node scripts/ensure-native.js",
     "init-db": "node src/init-db.js",
     "ingest": "node src/ingest.js",
     "start": "node src/server.js",

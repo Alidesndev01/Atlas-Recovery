@@ -229,20 +229,27 @@ load successfully.
 
 The service is deployed as a Render **Web Service**:
 
-Settings live in `render.yaml` in this repo rather than only in the dashboard:
-
-- **Build command:** `npm ci && npm rebuild better-sqlite3`
+- **Build command:** `npm install`
 - **Start command:** `npm start`
 - **Health check path:** `/health`
 
-`npm ci` (not `npm install`) is deliberate: it wipes `node_modules` and installs
-exactly what the lockfile pins. A *cached* `node_modules` is what causes
-`NODE_MODULE_VERSION 115 ... requires 127` — the native binary is left over from a
-build on a different Node version. The explicit `npm rebuild` is a second guard.
+`render.yaml` is committed, but note that for a service originally created through the
+dashboard, Render keeps using the dashboard's build/start commands and ignores the YAML
+unless the service is connected as a Blueprint. The code therefore does not rely on
+either command being correct:
 
-Do **not** chain `npm run ingest &&` into the start command. A seeded `atlas.db` is
-committed so the service boots with data already present, and chaining with `&&` means
-any ingest error stops the server from starting at all.
+**`postinstall` guards the native module.** `better-sqlite3` compiles against one Node
+ABI. When a host reuses a cached `node_modules`, `npm install` prints "up to date" and
+skips the rebuild, leaving a binary from an older Node -- which crashes at startup with
+`NODE_MODULE_VERSION ... ERR_DLOPEN_FAILED`. `scripts/ensure-native.js` runs after every
+install, actually opens a database (a plain `require()` is not enough -- the binary is
+only loaded when a `Database` is constructed), and rebuilds if that fails.
+
+**Ingestion can never block startup.** A seeded `atlas.db` is committed, so the service
+boots with data regardless. If the start command chains `npm run ingest && npm start`, a
+missing or malformed CSV now warns and exits 0 rather than taking the API down with it.
+Run `npm run ingest` in a terminal and real failures still exit 1, or set
+`INGEST_STRICT=1` to force that behaviour.
 
 Render sets `PORT` automatically and the server reads it, so no extra config is needed.
 
