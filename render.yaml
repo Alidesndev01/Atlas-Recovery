@@ -1,0 +1,29 @@
+# Render deployment config.
+#
+# Keeping this in the repo means the build/start commands are version-controlled
+# instead of living only in the dashboard.
+services:
+  - type: web
+    name: Atlas-Recovery
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+
+    # `npm ci` installs exactly what package-lock.json specifies, into a clean
+    # node_modules. That matters here: better-sqlite3 is a native module, and a
+    # cached node_modules built against a different Node version fails at
+    # startup with ERR_DLOPEN_FAILED / NODE_MODULE_VERSION. The explicit rebuild
+    # is belt-and-braces in case a cache layer survives anyway.
+    buildCommand: npm ci && npm rebuild better-sqlite3
+
+    # Just start the server. Do NOT chain `npm run ingest` here: a seeded
+    # atlas.db is committed, so ingestion is not needed to boot, and chaining it
+    # with && means any ingest failure stops the server from starting at all.
+    startCommand: npm start
+
+    healthCheckPath: /health
+
+    envVars:
+      - key: NODE_VERSION
+        value: "22"

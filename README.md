@@ -229,9 +229,20 @@ load successfully.
 
 The service is deployed as a Render **Web Service**:
 
-- **Build command:** `npm install`
+Settings live in `render.yaml` in this repo rather than only in the dashboard:
+
+- **Build command:** `npm ci && npm rebuild better-sqlite3`
 - **Start command:** `npm start`
 - **Health check path:** `/health`
+
+`npm ci` (not `npm install`) is deliberate: it wipes `node_modules` and installs
+exactly what the lockfile pins. A *cached* `node_modules` is what causes
+`NODE_MODULE_VERSION 115 ... requires 127` — the native binary is left over from a
+build on a different Node version. The explicit `npm rebuild` is a second guard.
+
+Do **not** chain `npm run ingest &&` into the start command. A seeded `atlas.db` is
+committed so the service boots with data already present, and chaining with `&&` means
+any ingest error stops the server from starting at all.
 
 Render sets `PORT` automatically and the server reads it, so no extra config is needed.
 
