@@ -1,20 +1,22 @@
 {
-    "name":  "atlas-recovery-lookup",
-    "version":  "1.0.0",
-    "description":  "CSV ingestion + account lookup API for Atlas Recovery (CollectWise take-home)",
-    "main":  "src/server.js",
-    "type":  "commonjs",
-    "scripts":  {
-                    "init-db":  "node src/init-db.js",
-                    "ingest":  "node src/ingest.js",
-                    "start":  "node src/server.js"
-                },
-    "engines":  {
-                    "node":  "20.x"
-                },
-    "dependencies":  {
-                         "better-sqlite3":  "^11.10.0",
-                         "csv-parse":  "^5.6.0",
-                         "express":  "^4.21.2"
-                     }
+  "name": "atlas-recovery-lookup",
+  "version": "1.0.0",
+  "description": "CSV ingestion + account lookup API for Atlas Recovery (CollectWise take-home)",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "init-db": "node src/init-db.js",
+    "ingest": "node src/ingest.js",
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "csv-parse": "^7.0.2",
+    "express": "^5.2.1",
+    "multer": "^2.3.0"
+  }
 }

@@ -2,7 +2,8 @@
 
 A small Node.js service for CollectWise / Atlas Recovery that:
 
-1. **Ingests** a debtor CSV (`atlas_inventory.csv`) into a SQLite database.
+1. **Ingests** a debtor CSV (`atlas_inventory.csv`) into a SQLite database — from the
+   command line **or** through a web page where staff can upload the file.
 2. **Exposes an HTTP API** so the AI agent can look up an account by `account_number`.
 
 Built to be simple, reliable, and easy to run in one command.
@@ -11,10 +12,11 @@ Built to be simple, reliable, and easy to run in one command.
 
 ## Tech stack
 
-- **Node.js** (works on Node 18+)
-- **SQLite** via `better-sqlite3` — a single-file database, no separate DB server to install
-- **Express** for the HTTP API
+- **Node.js 20+**
+- **SQLite** via `better-sqlite3` — a single-file database, no separate DB server
+- **Express 5** for the HTTP API
 - **csv-parse** for reading the CSV
+- **multer** for handling the file upload
 
 SQLite was chosen deliberately: for a periodically-uploaded inventory file and simple
 account lookups, it's fast, zero-config, and keeps the whole prototype in one folder.
@@ -28,64 +30,70 @@ The same code moves to Postgres later with minimal changes if volume grows.
 npm install
 ```
 
-This also compiles `better-sqlite3` for your machine (needs a normal build toolchain,
-which almost every system already has).
+---
+
+## Quick start
+
+```bash
+npm run ingest   # load the sample CSV into the database
+npm start        # start the API + upload interface on http://localhost:3000
+```
+
+Then open **http://localhost:3000** in a browser.
 
 ---
 
-## 1. Ingest the CSV
+## 1. Ingesting the CSV
 
-Place your file at the project root as `atlas_inventory.csv` (a sample is already
-included), then run:
+There are two ways to load data. Both run the **exact same** parsing, validation and
+duplicate-handling code (`src/ingest-core.js`), so they always behave identically.
+
+### Option A — the web interface (for Atlas staff)
+
+Start the server and open `http://localhost:3000`. Drag the CSV onto the page (or click
+to browse) and press **Upload & import**. You get an immediate summary of how many rows
+were inserted, updated and skipped — and exactly why each skipped row was rejected.
+
+The same page has a lookup box so you can verify an account straight after uploading.
+
+### Option B — the command line
 
 ```bash
-npm run ingest
+npm run ingest                     # reads ./atlas_inventory.csv
+npm run ingest ./path/to/file.csv  # or point it at any file
 ```
 
-Or point it at any file:
-
-```bash
-npm run ingest ./path/to/some_file.csv
-```
-
-You'll get a summary like:
+Example output:
 
 ```
 ===== Ingestion Summary =====
 Rows in file : 9
 Inserted     : 6
-Updated      : 1  (duplicate account_numbers overwritten)
+Updated      : 0  (duplicate account_numbers overwritten)
 Skipped      : 2
 
------ Skipped rows -----
+----- Notes -----
+  - Line 7 (account ACC-1002): duplicate within this file -> later row overwrote the earlier one
   - Line 8 (account ACC-1006): balance "not-a-number" is not numeric -> skipped
   - Line 9: missing account_number -> skipped
+
+Total accounts now in database: 6
 ```
 
 The database is written to `atlas.db` in the project root.
 
 ---
 
-## 2. Run the API
+## 2. The API
+
+### Look up an account
 
 ```bash
-npm start
-```
-
-Then, in another terminal:
-
-```bash
-# Look up a valid account (path style)
 curl http://localhost:3000/accounts/ACC-1001
-
-# Same thing, query-string style
 curl "http://localhost:3000/accounts?account_number=ACC-1001"
-
-# A missing account returns HTTP 404
-curl -i http://localhost:3000/accounts/NOPE
 ```
 
-Successful response:
+**200 OK**
 
 ```json
 {
@@ -98,7 +106,7 @@ Successful response:
 }
 ```
 
-Not-found response (HTTP 404):
+**404 Not Found**
 
 ```json
 {
@@ -108,81 +116,137 @@ Not-found response (HTTP 404):
 }
 ```
 
+**400 Bad Request** — returned when the parameter is empty or still contains an
+unrendered `{{template}}` placeholder from the agent config. This is deliberately
+*not* a 404: it tells you the agent is misconfigured rather than that the account
+is missing.
+
+### Upload a CSV
+
+```bash
+curl -X POST -F "file=@atlas_inventory.csv" http://localhost:3000/api/upload
+```
+
+```json
+{
+  "ok": true,
+  "filename": "atlas_inventory.csv",
+  "total": 9,
+  "inserted": 6,
+  "updated": 0,
+  "skipped": 2,
+  "problems": ["Line 9: missing account_number -> skipped"],
+  "totalInDb": 6
+}
+```
+
+Rejected uploads return HTTP 400 with a plain-English `message`:
+`no_file`, `invalid_file` (not a `.csv`), `file_too_large` (over 5 MB),
+`empty_file`, `missing_columns`, `parse_error`.
+
+### Other endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET`  | `/` | Upload + lookup interface |
+| `GET`  | `/accounts/:accountNumber` | Look up one account |
+| `GET`  | `/accounts?account_number=` | Same, query-string style |
+| `POST` | `/api/upload` | Upload a CSV (multipart, field name `file`) |
+| `GET`  | `/api/stats` | Row count + last upload time |
+| `GET`  | `/health` | Liveness check |
+
 ---
 
 ## Database schema
 
 Table: `accounts`
 
-| Column          | Type | Notes                                  |
-|-----------------|------|----------------------------------------|
-| account_number  | TEXT | **Primary key** — unique per account   |
-| debtor_name     | TEXT |                                        |
-| phone_number    | TEXT |                                        |
-| balance         | REAL | Numeric                                |
-| status          | TEXT | e.g. Active, Closed, Settlement Eligible |
-| client_name     | TEXT |                                        |
-| updated_at      | TEXT | Timestamp of the last upload that touched this row |
+| Column          | Type | Notes                                              |
+|-----------------|------|----------------------------------------------------|
+| account_number  | TEXT | **Primary key** — unique per account                |
+| debtor_name     | TEXT |                                                     |
+| phone_number    | TEXT |                                                     |
+| balance         | REAL | Numeric                                             |
+| status          | TEXT | e.g. Active, Closed, Settlement Eligible            |
+| client_name     | TEXT |                                                     |
+| updated_at      | TEXT | Timestamp of the last upload that touched this row  |
+
+`account_number` being the primary key is what enforces uniqueness — SQLite will not
+allow two rows to share one.
 
 ---
 
 ## Design decisions & edge cases
 
 **Duplicate `account_number` → overwrite (upsert).**
-Atlas re-uploads their latest inventory periodically, so the newest row should win.
-On a duplicate, the existing record is updated in place and `updated_at` is refreshed.
-(Alternatives would be "skip" or "error"; overwrite matches the real-world workflow
-of a refreshed export replacing stale data.)
+Atlas re-uploads their latest inventory periodically, so the newest row should win. On a
+duplicate the existing record is updated in place and `updated_at` is refreshed.
+(Alternatives would be "skip" or "error"; overwrite matches the real-world workflow of a
+refreshed export replacing stale data.) This applies both *across* uploads and *within* a
+single file — if the same account appears twice in one CSV, the later row wins and the
+summary says so.
 
-**Missing `account_number` → skip.**
-Without an account number we can't identify or look up the record, so the row is
-skipped and reported. We never crash the whole import over one bad row.
+**Missing `account_number` → skip and report.**
+Without it we can't identify or look up the record.
 
-**Non-numeric `balance` → skip + report.**
-A balance like `"not-a-number"` is rejected so bad data never lands in the DB.
-The row is listed in the summary so a human can fix the source file.
+**Non-numeric `balance` → skip and report.**
+Values like `"not-a-number"` never reach the database. Real-world formatting *is*
+accepted though: `$1,250.75` parses as `1250.75`, and `(75.50)` — the accounting
+convention for a negative — parses as `-75.50`.
 
 **One bad row never stops the load.**
-Every row is validated independently; good rows load, bad rows are reported.
+Every row is validated independently inside a single transaction. Good rows land, bad
+rows are reported line-by-line so a human can fix the source file.
 
-The included `atlas_inventory.csv` intentionally contains one duplicate, one row
-with a missing account number, and one row with a bad balance, so you can see all
-of this handling in action on the first run.
+**Files that aren't really inventory exports are rejected outright.**
+If `account_number` or `balance` is missing from the header, the upload fails with a
+clear message instead of silently importing zero rows. Uploads are also capped at 5 MB
+and restricted to `.csv`.
+
+**Messy-but-valid files are handled.** UTF-8 BOM (what Excel writes on "Save as CSV"),
+CRLF line endings, and header capitalisation/whitespace differences are all normalised,
+so `Account_Number` works the same as `account_number`.
+
+**Account lookup is tolerant, but never ambiguous.**
+The voice agent transcribes spoken account numbers inconsistently — `acc 1001`,
+`ACC1001` and `acc-1001` all resolve to `ACC-1001`, because matching happens on a
+normalised form (uppercased, punctuation stripped). It is still an **equality** match,
+never a partial/`LIKE` one: looking up `1001` returns a 404 rather than guessing. On a
+live collections call, quietly returning a different debtor's balance would be far worse
+than admitting the account wasn't found.
+
+The included `atlas_inventory.csv` intentionally contains one duplicate, one row with a
+missing account number, and one row with a bad balance, so all of this handling is
+visible on the very first run.
 
 ---
 
-## Deploying so you have a public URL
+## Deployment (Render)
 
-Two easy options.
+The service is deployed as a Render **Web Service**:
 
-### Option A — Render (free, gives a permanent public URL)
+- **Build command:** `npm install`
+- **Start command:** `npm start`
+- **Health check path:** `/health`
 
-1. Push this folder to a GitHub repo.
-2. On [render.com](https://render.com), create a new **Web Service** from that repo.
-3. Settings:
-   - **Build command:** `npm install`
-   - **Start command:** `npm start`
-4. After it deploys, Render gives you a URL like `https://atlas-recovery.onrender.com`.
-5. Ingest data on the server the first time by adding a one-off command, or commit
-   `atlas.db` (already populated locally) so it ships with the app. Simplest for a
-   demo: run `npm run ingest` locally, then commit `atlas.db`.
+Render sets `PORT` automatically and the server reads it, so no extra config is needed.
 
-Test it:
+### ⚠️ Important: data does not persist on Render's free tier
 
-```
-https://YOUR-APP.onrender.com/accounts/ACC-1001
-```
+Render's free tier gives each instance an **ephemeral filesystem**. `atlas.db` is wiped
+whenever the service redeploys or spins down after idling (~15 minutes). A CSV uploaded
+through the web interface will work immediately, then disappear after the next restart.
 
-### Option B — ngrok (fastest, temporary URL for a live demo)
+To keep this predictable, a pre-populated `atlas.db` is committed to the repo, so the
+deployed service always starts with the sample accounts loaded and the lookup endpoint
+always answers.
 
-Keep the server running locally (`npm start`) and in another terminal:
+**Before a live demo, re-upload the CSV through `/` to be sure the data is fresh.**
 
-```bash
-npx ngrok http 3000
-```
-
-ngrok prints a public `https://...` URL that forwards straight to your local API.
-Great for a quick call/demo; the URL goes away when you stop ngrok.
+For production this needs durable storage — either a Render **persistent disk** (paid
+plan; then set `DB_PATH=/var/data/atlas.db`) or a hosted Postgres. The `DB_PATH`
+environment variable already exists for exactly this, so the change is a config swap
+rather than a rewrite.
 
 ---
 
@@ -191,12 +255,16 @@ Great for a quick call/demo; the URL goes away when you stop ngrok.
 ```
 atlas-recovery-lookup/
 ├── package.json
-├── atlas_inventory.csv      # sample data (includes edge cases)
+├── atlas_inventory.csv           # sample data (includes edge cases)
+├── atlas.db                      # committed, pre-populated (see deployment note)
 ├── README.md
-├── src/
-│   ├── db.js                # opens SQLite + defines the schema
-│   ├── init-db.js           # `npm run init-db` — create DB/table explicitly
-│   ├── ingest.js            # `npm run ingest` — load the CSV
-│   └── server.js            # `npm start` — the lookup API
-└── atlas.db                 # created after you run ingest
+├── customer_issue_resolution_email.md
+├── public/
+│   └── index.html                # upload + lookup interface
+└── src/
+    ├── db.js                     # opens SQLite + defines the schema
+    ├── init-db.js                # `npm run init-db` — create DB/table explicitly
+    ├── ingest-core.js            # shared parse/validate/upsert logic
+    ├── ingest.js                 # `npm run ingest` — CLI loader
+    └── server.js                 # `npm start` — API + upload endpoint
 ```
