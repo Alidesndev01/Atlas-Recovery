@@ -15,11 +15,14 @@ const findByAccount = db.prepare(`
 `);
 
 function lookupAndRespond(rawInput, res) {
-  let target = (rawInput || "").trim();
+  const target = (rawInput || "").trim();
 
-  // Guard against unparsed Retell template tags or empty inputs
+  // If nothing was passed or unparsed template was sent, return a bad request error
   if (!target || target === "{{account_number}}" || target.includes("{{")) {
-    target = "ACC-1001";
+    return res.status(400).json({
+      error: "bad_request",
+      message: "A valid account_number parameter is required.",
+    });
   }
 
   const cleaned = target.toUpperCase().replace(/\s+/g, "");
