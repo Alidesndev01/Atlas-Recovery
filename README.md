@@ -235,6 +235,13 @@ The service is deployed as a Render **Web Service**:
 
 Render sets `PORT` automatically and the server reads it, so no extra config is needed.
 
+**The Node version is pinned to 22** (`.node-version` and `engines` in `package.json`).
+This matters: `better-sqlite3` is a native module and only ships prebuilt binaries for
+specific Node ABI versions. On a newer Node the install falls back to compiling from
+source, and if that fails the server crashes at startup with
+`ERR_DLOPEN_FAILED / NODE_MODULE_VERSION`. Don't loosen this pin without checking that
+a prebuild exists for the Node version you move to.
+
 ### ⚠️ Important: data does not persist on Render's free tier
 
 Render's free tier gives each instance an **ephemeral filesystem**. `atlas.db` is wiped
