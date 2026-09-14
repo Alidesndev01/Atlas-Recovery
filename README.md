@@ -243,7 +243,11 @@ ABI. When a host reuses a cached `node_modules`, `npm install` prints "up to dat
 skips the rebuild, leaving a binary from an older Node -- which crashes at startup with
 `NODE_MODULE_VERSION ... ERR_DLOPEN_FAILED`. `scripts/ensure-native.js` runs after every
 install, actually opens a database (a plain `require()` is not enough -- the binary is
-only loaded when a `Database` is constructed), and rebuilds if that fails.
+only loaded when a `Database` is constructed), and repairs it if that fails: first by
+fetching the prebuild for the running Node ABI, then by compiling from source, then by
+reinstalling the package. Note that `npm rebuild --build-from-source` does *not* work
+here -- npm does not recognise that flag, ignores it, and can report "rebuilt
+dependencies successfully" without compiling anything.
 
 **Ingestion can never block startup.** A seeded `atlas.db` is committed, so the service
 boots with data regardless. If the start command chains `npm run ingest && npm start`, a
