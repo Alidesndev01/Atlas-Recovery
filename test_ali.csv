@@ -1,0 +1,4 @@
+account_number,debtor_name,phone_number,balance,status,client_name
+ACC-3001,Ali One,+1-555-0301,1500.00,Active,Harbor Bank
+ACC-3002,Ali Two,+1-555-0302,875.50,Settlement Eligible,Midwest Credit Union
+ACC-3003,Ali Three,+1-555-0303,2300.75,Active,Sunrise Auto Finance

@@ -219,6 +219,10 @@ The included `atlas_inventory.csv` intentionally contains one duplicate, one row
 missing account number, and one row with a bad balance, so all of this handling is
 visible on the very first run.
 
+`test_ali.csv` is the opposite: three clean records (`ACC-3001`–`ACC-3003`) with no
+edge cases, for a quick end-to-end check or a demo where you just want every row to
+load successfully.
+
 ---
 
 ## Deployment (Render)
@@ -256,6 +260,7 @@ rather than a rewrite.
 atlas-recovery-lookup/
 ├── package.json
 ├── atlas_inventory.csv           # sample data (includes edge cases)
+├── test_ali.csv                  # small clean 3-record file for quick testing
 ├── atlas.db                      # committed, pre-populated (see deployment note)
 ├── README.md
 ├── customer_issue_resolution_email.md
