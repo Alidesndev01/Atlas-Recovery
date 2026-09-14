@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Atlas Recovery — Account Inventory</title>
+<title>Atlas Recovery — Debtor Accounts</title>
 <style>
   :root {
     --bg:#fbfbfc; --panel:#fff; --ink:#0f1115; --soft:#71767f;
@@ -177,14 +177,14 @@
 
   <header>
     <div class="badge"><i></i> Atlas Recovery</div>
-    <h1>Account Inventory</h1>
-    <p class="lede">Upload your inventory file, then verify any account the AI agent will look up.</p>
+    <h1>Debtor Accounts</h1>
+    <p class="lede">Upload your debtor account data, then verify any account the AI agent will look up.</p>
   </header>
 
   <!-- Upload -->
   <section class="panel">
     <div class="panel-head">
-      <h2>Upload inventory CSV</h2>
+      <h2>Upload debtor accounts</h2>
       <span class="count" id="count"></span>
     </div>
     <div class="panel-body">
@@ -197,7 +197,7 @@
               <path d="M7 10l5-5 5 5"/><path d="M12 5v12"/>
             </svg>
           </span>
-          <span class="dz-title">Drop your CSV here, or click to browse</span>
+          <span class="dz-title">Drop your CSV or Excel file here, or click to browse</span>
           <span class="dz-sub">account_number · debtor_name · phone_number · balance · status · client_name</span>
         </span>
         <span class="chip" id="dropFile" hidden>
@@ -215,7 +215,7 @@
           <span class="chip-x" id="fClear" role="button" aria-label="Remove file" title="Remove">×</span>
         </span>
       </button>
-      <input type="file" id="file" accept=".csv,text/csv" class="sr" />
+      <input type="file" id="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" class="sr" />
 
       <button class="btn wide" id="send" disabled>Upload &amp; import</button>
       <div id="upOut" aria-live="polite"></div>

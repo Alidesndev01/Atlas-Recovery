@@ -14,7 +14,7 @@ const path = require("path");
 const express = require("express");
 const multer = require("multer");
 const { db } = require("./db");
-const { ingestCsv } = require("./ingest-core");
+const { ingestFile } = require("./ingest-core");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,15 +33,21 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter: (_req, file, cb) => {
     const name = (file.originalname || "").toLowerCase();
-    // Browsers report CSV inconsistently (text/csv, application/vnd.ms-excel,
-    // sometimes octet-stream), so the extension is the reliable signal.
-    if (name.endsWith(".csv") || name.endsWith(".txt")) return cb(null, true);
-    cb(Object.assign(new Error("Only .csv files are accepted."), { code: "BAD_FILE_TYPE" }));
+    // Browsers report these types inconsistently (text/csv,
+    // application/vnd.ms-excel, sometimes octet-stream), so the extension is
+    // the reliable signal. The actual format is sniffed from the bytes later.
+    const ok = [".csv", ".txt", ".xlsx", ".xls"].some((ext) => name.endsWith(ext));
+    if (ok) return cb(null, true);
+    cb(
+      Object.assign(new Error("Only CSV and Excel (.xlsx, .xls) files are accepted."), {
+        code: "BAD_FILE_TYPE",
+      })
+    );
   },
 });
 
 app.post("/api/upload", (req, res) => {
-  upload.single("file")(req, res, (uploadErr) => {
+  upload.single("file")(req, res, async (uploadErr) => {
     if (uploadErr) {
       const tooBig = uploadErr.code === "LIMIT_FILE_SIZE";
       return res.status(400).json({
@@ -57,12 +63,13 @@ app.post("/api/upload", (req, res) => {
       return res.status(400).json({
         ok: false,
         error: "no_file",
-        message: "No file was uploaded. Choose a CSV file and try again.",
+        message: "No file was uploaded. Choose a CSV or Excel file and try again.",
       });
     }
 
     try {
-      const result = ingestCsv(req.file.buffer);
+      // Parsing Excel is async, so the whole handler awaits the result.
+      const result = await ingestFile(req.file.buffer);
       return res.json({
         ok: true,
         filename: req.file.originalname,

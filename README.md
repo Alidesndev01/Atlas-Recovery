@@ -2,8 +2,8 @@
 
 A small Node.js service for CollectWise / Atlas Recovery that:
 
-1. **Ingests** a debtor CSV (`atlas_inventory.csv`) into a SQLite database — from the
-   command line **or** through a web page where staff can upload the file.
+1. **Ingests** debtor account data — CSV *or* Excel (`.xlsx`/`.xls`) — into a SQLite
+   database, from the command line **or** through a web page where staff upload the file.
 2. **Exposes an HTTP API** so the AI agent can look up an account by `account_number`.
 
 Built to be simple, reliable, and easy to run in one command.
@@ -15,7 +15,8 @@ Built to be simple, reliable, and easy to run in one command.
 - **Node.js 20+**
 - **SQLite** via `better-sqlite3` — a single-file database, no separate DB server
 - **Express 5** for the HTTP API
-- **csv-parse** for reading the CSV
+- **csv-parse** for reading CSV
+- **exceljs** for reading Excel workbooks
 - **multer** for handling the file upload
 
 SQLite was chosen deliberately: for a periodically-uploaded inventory file and simple
@@ -50,8 +51,8 @@ duplicate-handling code (`src/ingest-core.js`), so they always behave identicall
 
 ### Option A — the web interface (for Atlas staff)
 
-Start the server and open `http://localhost:3000`. Drag the CSV onto the page (or click
-to browse) and press **Upload & import**. You get an immediate summary of how many rows
+Start the server and open `http://localhost:3000`. Drag a CSV or Excel file onto the page
+(or click to browse) and press **Upload & import**. You get an immediate summary of how many rows
 were inserted, updated and skipped — and exactly why each skipped row was rejected.
 
 The same page has a lookup box so you can verify an account straight after uploading.
@@ -59,8 +60,9 @@ The same page has a lookup box so you can verify an account straight after uploa
 ### Option B — the command line
 
 ```bash
-npm run ingest                     # reads ./atlas_inventory.csv
-npm run ingest ./path/to/file.csv  # or point it at any file
+npm run ingest                      # reads ./atlas_inventory.csv
+npm run ingest ./path/to/file.csv   # or point it at any file
+npm run ingest ./path/to/file.xlsx  # Excel works the same way
 ```
 
 Example output:
@@ -223,6 +225,22 @@ visible on the very first run.
 edge cases, for a quick end-to-end check or a demo where you just want every row to
 load successfully.
 
+`atlas_inventory_sample.xlsx` is the same idea in Excel form: eight clean debtor records
+(`ACC-4101`–`ACC-4108`) with a formatted header row, for testing the Excel path.
+
+**CSV and Excel are held to identical rules.** The two formats differ only in how raw
+bytes become rows; validation, duplicate handling and the upsert are shared code
+(`loadRows` in `src/ingest-core.js`), so neither format can drift from the other.
+
+**The format is detected from the file's bytes, not its name.** A `.xlsx` is a ZIP
+container (starts with `PK`) and a legacy `.xls` has its own signature. This means a
+CSV that someone saved with an `.xlsx` extension still imports correctly, and a file
+that is not really a spreadsheet gets a clear error instead of a confusing one.
+
+**Spreadsheet cells are normalised to text before validation.** A phone number stored as
+a number, a balance stored as a formula, rich text, and trailing blank rows are all
+handled -- blank rows are skipped silently rather than reported as validation failures.
+
 ---
 
 ## Deployment (Render)
@@ -289,6 +307,7 @@ rather than a rewrite.
 atlas-recovery-lookup/
 ├── package.json
 ├── atlas_inventory.csv           # sample data (includes edge cases)
+├── atlas_inventory_sample.xlsx   # sample Excel workbook (8 clean records)
 ├── test_ali.csv                  # small clean 3-record file for quick testing
 ├── atlas.db                      # committed, pre-populated (see deployment note)
 ├── README.md
@@ -298,7 +317,7 @@ atlas-recovery-lookup/
 └── src/
     ├── db.js                     # opens SQLite + defines the schema
     ├── init-db.js                # `npm run init-db` — create DB/table explicitly
-    ├── ingest-core.js            # shared parse/validate/upsert logic
+    ├── ingest-core.js            # CSV + Excel parsing, shared validate/upsert
     ├── ingest.js                 # `npm run ingest` — CLI loader
     └── server.js                 # `npm start` — API + upload endpoint
 ```
