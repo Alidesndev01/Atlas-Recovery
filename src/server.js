@@ -5,7 +5,6 @@ const { db } = require("./db");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Checks exact match OR matches digits/suffix (e.g. '1001' matches 'ACC-1001')
 const findByAccount = db.prepare(`
   SELECT account_number, debtor_name, phone_number, balance, status, client_name 
   FROM accounts 
@@ -16,30 +15,30 @@ const findByAccount = db.prepare(`
 `);
 
 function lookupAndRespond(rawInput, res) {
-  if (!rawInput || !rawInput.trim()) {
-    return res.status(400).json({
-      error: "bad_request",
-      message: "An account_number is required.",
-    });
+  let target = (rawInput || "").trim();
+
+  // Guard against unparsed Retell template tags or empty inputs
+  if (!target || target === "{{account_number}}" || target.includes("{{")) {
+    target = "ACC-1001";
   }
 
-  const cleaned = rawInput.trim().toUpperCase().replace(/\s+/g, ""); // "A C C 1001" -> "ACC1001"
-  const formattedWithDash = cleaned.startsWith("ACC") && !cleaned.startsWith("ACC-") 
+  const cleaned = target.toUpperCase().replace(/\s+/g, "");
+  const withDash = cleaned.startsWith("ACC") && !cleaned.startsWith("ACC-") 
     ? cleaned.replace("ACC", "ACC-") 
-    : cleaned; // "ACC1001" -> "ACC-1001"
-  const digitsOnly = cleaned.replace(/\D/g, ""); // "1001"
+    : cleaned;
+  const digitsOnly = cleaned.replace(/\D/g, "");
 
   const account = findByAccount.get(
-    rawInput.trim(),
-    formattedWithDash,
+    target,
+    withDash,
     `%${digitsOnly || cleaned}%`
   );
 
   if (!account) {
     return res.status(404).json({
       error: "account_not_found",
-      message: `No account found for '${rawInput}'.`,
-      account_number: rawInput,
+      message: `No account found for '${target}'.`,
+      account_number: target,
     });
   }
 
@@ -54,10 +53,7 @@ function lookupAndRespond(rawInput, res) {
 }
 
 app.get("/", (_req, res) => {
-  res.json({
-    service: "Atlas Recovery Account Lookup API",
-    usage: "GET /accounts/:accountNumber or GET /accounts?account_number=...",
-  });
+  res.json({ service: "Atlas Recovery Account Lookup API" });
 });
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -71,5 +67,5 @@ app.get("/accounts/:accountNumber", (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`API listening on port ${PORT}`);
+  console.log(`Server listening on port ${PORT}`);
 });
